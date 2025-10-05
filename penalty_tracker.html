@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penalty Tracker</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe4cc 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        .main-title {
+            color: #7f1d1d;
+            margin-bottom: 2rem;
+        }
+        .penalty-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .btn-add-penalty {
+            background-color: #dc2626;
+            border-color: #dc2626;
+            font-weight: 600;
+        }
+        .btn-add-penalty:hover {
+            background-color: #b91c1c;
+            border-color: #b91c1c;
+        }
+        .alert-punishment {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .penalty-check {
+            display: inline-flex;
+            padding: 0.5rem;
+            border-radius: 8px;
+            width: 40px;
+            height: 40px;
+            align-items: center;
+            justify-content: center;
+        }
+        .penalty-complete {
+            background-color: #22c55e;
+        }
+        .penalty-incomplete {
+            background-color: #e5e7eb;
+        }
+        .table thead {
+            background-color: #dc2626;
+            color: white;
+        }
+        .blacklist-header {
+            background-color: #1f2937;
+            color: white;
+        }
+        .empty-state {
+            padding: 3rem;
+            text-align: center;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center main-title">⚠️ Penalty Tracker</h1>
+
+        <div class="penalty-card">
+            <div class="row g-3">
+                <div class="col-md-9">
+                    <input type="text" id="playerNameInput" class="form-control form-control-lg" placeholder="Enter player name..." onkeypress="handleKeyPress(event)">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-danger btn-lg w-100 btn-add-penalty" onclick="addPenalty()">Add Penalty</button>
+                </div>
+            </div>
+            <small class="text-muted d-block mt-2">💡 Just type the player's name and press Enter or click "Add Penalty"!</small>
+        </div>
+
+        <div id="messageBox"></div>
+
+        <div id="playersTable"></div>
+
+        <div id="emptyState" class="penalty-card empty-state">
+            <p class="fs-5 mb-0">No penalties recorded yet. Enter a player name above to start tracking!</p>
+        </div>
+
+        <!-- Blacklist Section -->
+        <div id="blacklistSection" style="display: none;">
+            <h3 class="text-center mt-4 mb-3" style="color: #1f2937;">🚫 Blacklist</h3>
+            <div class="penalty-card">
+                <div id="blacklistContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        let players = [];
+        let blacklist = [];
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                addPenalty();
+            }
+        }
+
+        function addPenalty() {
+            const input = document.getElementById('playerNameInput');
+            const playerName = input.value.trim();
+            
+            if (!playerName) return;
+
+            // Check if player is blacklisted
+            if (blacklist.some(p => p.toLowerCase() === playerName.toLowerCase())) {
+                showMessage(`🚫 ${playerName} is blacklisted and cannot receive more penalties!`);
+                input.value = '';
+                return;
+            }
+
+            const existingPlayerIndex = players.findIndex(p => p.name.toLowerCase() === playerName.toLowerCase());
+
+            if (existingPlayerIndex === -1) {
+                players.push({
+                    name: playerName,
+                    penalties: [true, false, false]
+                });
+                clearMessage();
+            } else {
+                const player = players[existingPlayerIndex];
+                
+                if (player.penalties.every(p => p)) {
+                    showMessage(`⚠️ ${player.name} - Time for punishment!`);
+                    // Add to blacklist
+                    blacklist.push(player.name);
+                    setTimeout(() => {
+                        players.splice(existingPlayerIndex, 1);
+                        renderPlayers();
+                        renderBlacklist();
+                        // Clear message after 5 seconds total
+                        setTimeout(() => {
+                            clearMessage();
+                        }, 3000);
+                    }, 2000);
+                } else {
+                    const nextPenaltyIndex = player.penalties.findIndex(p => !p);
+                    player.penalties[nextPenaltyIndex] = true;
+                    clearMessage();
+                }
+            }
+
+            input.value = '';
+            renderPlayers();
+        }
+
+        function removeFromBlacklist(playerName) {
+            blacklist = blacklist.filter(p => p !== playerName);
+            renderBlacklist();
+        }
+
+        function showMessage(msg) {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.innerHTML = `
+                <div class="alert alert-danger alert-punishment fw-bold text-center fs-5" role="alert">
+                    ${msg}
+                </div>
+            `;
+        }
+
+        function clearMessage() {
+            document.getElementById('messageBox').innerHTML = '';
+        }
+
+        function renderPlayers() {
+            const playersTable = document.getElementById('playersTable');
+            const emptyState = document.getElementById('emptyState');
+
+            if (players.length === 0) {
+                playersTable.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            let tableHTML = `
+                <div class="penalty-card">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Player Name</th>
+                                <th scope="col" class="text-center">Penalty 1</th>
+                                <th scope="col" class="text-center">Penalty 2</th>
+                                <th scope="col" class="text-center">Penalty 3</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            players.forEach(player => {
+                tableHTML += `<tr>
+                    <td class="fw-semibold">${player.name}</td>`;
+                
+                player.penalties.forEach(completed => {
+                    tableHTML += `<td class="text-center">
+                        <div class="penalty-check ${completed ? 'penalty-complete' : 'penalty-incomplete'}">
+                            ${completed ? '<svg width="24" height="24" fill="white" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : ''}
+                        </div>
+                    </td>`;
+                });
+
+                tableHTML += `</tr>`;
+            });
+
+            tableHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            playersTable.innerHTML = tableHTML;
+        }
+
+        function renderBlacklist() {
+            const blacklistSection = document.getElementById('blacklistSection');
+            const blacklistContent = document.getElementById('blacklistContent');
+
+            if (blacklist.length === 0) {
+                blacklistSection.style.display = 'none';
+                return;
+            }
+
+            blacklistSection.style.display = 'block';
+
+            let blacklistHTML = `
+                <table class="table table-hover mb-0">
+                    <thead class="blacklist-header">
+                        <tr>
+                            <th scope="col">Player Name</th>
+                            <th scope="col" class="text-center">Status</th>
+                            <th scope="col" class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            blacklist.forEach(player => {
+                blacklistHTML += `
+                    <tr>
+                        <td class="fw-semibold">${player}</td>
+                        <td class="text-center">
+                            <span class="badge bg-dark">🚫 Blacklisted</span>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-danger" onclick="removeFromBlacklist('${player}')">Remove</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            blacklistHTML += `
+                    </tbody>
+                </table>
+            `;
+
+            blacklistContent.innerHTML = blacklistHTML;
+        }
+
+        // Show empty state on page load
+        renderPlayers();
+        renderBlacklist();
+    </script>
+</body>
+</html>
